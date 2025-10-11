@@ -1,0 +1,8 @@
+{
+  "providers": [
+    {
+      "name": "node",
+      "install_command": "npm install"
+    }
+  ]
+} 

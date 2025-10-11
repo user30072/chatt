@@ -1,0 +1,21 @@
+{
+    "name": "ai-chatbot-widget",
+    "version": "1.0.0",
+    "description": "Embeddable chat widget for AI Chatbot SaaS platform",
+    "main": "dist/widget.js",
+    "scripts": {
+      "build": "webpack",
+      "dev": "webpack --watch --mode=development",
+      "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "author": "",
+    "license": "MIT",
+    "devDependencies": {
+      "@babel/core": "^7.22.5",
+      "@babel/preset-env": "^7.22.5",
+      "babel-loader": "^9.1.2",
+      "terser-webpack-plugin": "^5.3.9",
+      "webpack": "^5.88.0",
+      "webpack-cli": "^5.1.4"
+    }
+  }

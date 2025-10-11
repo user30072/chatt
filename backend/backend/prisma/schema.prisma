@@ -1,0 +1,256 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("PGVECTOR_URL")
+  extensions = [pgvector(map: "vector")]
+}
+
+model User {
+  id               String   @id @default(cuid())
+  email            String   @unique
+  name             String?
+  username         String   @unique // Username for the user, must be unique
+  image            String?
+  password_hash    String?
+  first_name       String?
+  last_name        String?
+  is_admin         Boolean  @default(false)
+  is_platform_admin Boolean @default(false)
+  google_id        String?  @unique
+  avatar_url       String?
+  welcome_email_sent Boolean @default(false)
+  welcome_email_sent_at DateTime?
+  created_at       DateTime @default(now())
+  updated_at       DateTime @default(now()) @updatedAt
+  authProvider     String?  @default("email") // "email" or "google"
+  authProviderId   String?  // For OAuth providers like Google
+  chatbots         Chatbot[]
+  documents        Document[]
+  conversations    Conversation[]
+  messages         Message[]
+  tags             ConversationTag[]
+  api_usage        ApiUsage[]
+  subscription     UserSubscription?
+
+  @@map("users")
+}
+
+model Chatbot {
+  id                   String               @id @default(uuid())
+  name                 String
+  description          String?
+  user                 User                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id              String
+  active_document_ids  String[]
+  documents            Document[]
+  website_integrations WebsiteIntegration[]
+  conversations        Conversation[]
+  messages             Message[]
+  analytics_events     AnalyticsEvent[]
+  api_usage            ApiUsage[]
+  created_at           DateTime             @default(now())
+  updated_at           DateTime             @updatedAt
+  system_message       String?              @default("You are a helpful assistant.")
+  prompt_template      String?
+  temperature          Float?               @default(0.7)
+  max_context_length   Int?                 @default(10)
+  model                String?              @default("gpt-4o")
+  customization        ChatbotCustomization?
+  is_active            Boolean              @default(true)
+
+  @@map("chatbots")
+}
+
+model ChatbotCustomization {
+  id                  String   @id @default(uuid())
+  chatbot             Chatbot  @relation(fields: [chatbot_id], references: [id], onDelete: Cascade)
+  chatbot_id          String   @unique
+  theme_color         String   @default("#0084ff")
+  font_family         String   @default("Inter, sans-serif")
+  chat_bubble_icon_url String?
+  greeting_message    String   @default("Hello! How can I help you today?")
+  placeholder_text    String   @default("Type your message here...")
+  logo_url            String?
+  position            String   @default("bottom-right")
+  created_at          DateTime @default(now())
+  updated_at          DateTime @default(now()) @updatedAt
+
+  @@map("chatbot_customizations")
+}
+
+model Document {
+  id             String   @id @default(uuid())
+  user           User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id        String
+  chatbot        Chatbot? @relation(fields: [chatbot_id], references: [id], onDelete: Cascade)
+  chatbot_id     String?
+  name           String
+  file_type      String
+  file_url       String
+  file_size      Int
+  status         String   @default("processing")
+  metadata       Json?    @default("{}")
+  chunks         DocumentChunk[]
+  created_at     DateTime @default(now())
+  updated_at     DateTime @default(now()) @updatedAt
+
+  @@map("documents")
+}
+
+model DocumentChunk {
+  id        String   @id @default(cuid())
+  content   String
+  embedding Unsupported("vector(1536)")
+  metadata  Json?
+  document  Document @relation(fields: [documentId], references: [id])
+  documentId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([documentId])
+}
+
+model WebsiteIntegration {
+  id          String   @id @default(uuid())
+  chatbot     Chatbot  @relation(fields: [chatbot_id], references: [id], onDelete: Cascade)
+  chatbot_id  String
+  domain      String
+  is_active   Boolean  @default(true)
+  api_key     String   @default(uuid())
+  created_at  DateTime @default(now())
+  updated_at  DateTime @default(now()) @updatedAt
+
+  @@map("website_integrations")
+}
+
+model Conversation {
+  id           String   @id @default(uuid())
+  chatbot      Chatbot  @relation(fields: [chatbot_id], references: [id], onDelete: Cascade)
+  chatbot_id   String
+  user         User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id      String
+  visitor_id   String
+  visitor_name String?
+  visitor_email String?
+  status       String   @default("active")
+  metadata     Json?    @default("{}")
+  source_url   String?
+  messages     Message[]
+  analytics    AnalyticsEvent[]
+  tags         ConversationTagAssignment[]
+  created_at   DateTime @default(now())
+  updated_at   DateTime @default(now()) @updatedAt
+
+  @@map("conversations")
+}
+
+model Message {
+  id              String       @id @default(uuid())
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation_id String
+  chatbot         Chatbot      @relation(fields: [chatbot_id], references: [id], onDelete: Cascade)
+  chatbot_id      String
+  user            User         @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id         String
+  role            String
+  content         String
+  tokens_used     Int?
+  created_at      DateTime     @default(now())
+
+  @@map("messages")
+}
+
+model ConversationTag {
+  id              String   @id @default(uuid())
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id         String
+  name            String
+  color           String   @default("#6B7280")
+  conversations   ConversationTagAssignment[]
+  created_at      DateTime @default(now())
+
+  @@map("conversation_tags")
+}
+
+model ConversationTagAssignment {
+  conversation    Conversation @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation_id String
+  tag             ConversationTag @relation(fields: [tag_id], references: [id], onDelete: Cascade)
+  tag_id          String
+
+  @@id([conversation_id, tag_id])
+  @@map("conversation_tag_assignments")
+}
+
+model AnalyticsEvent {
+  id              String       @id @default(uuid())
+  chatbot         Chatbot?     @relation(fields: [chatbot_id], references: [id], onDelete: Cascade)
+  chatbot_id      String?
+  conversation    Conversation? @relation(fields: [conversation_id], references: [id], onDelete: Cascade)
+  conversation_id String?
+  event_type      String
+  event_data      Json?        @default("{}")
+  user_agent      String?
+  ip_address      String?
+  created_at      DateTime     @default(now())
+
+  @@map("analytics_events")
+}
+
+model SubscriptionPlan {
+  id              String   @id @default(uuid())
+  name            String
+  description     String?
+  price_monthly   Decimal  @db.Decimal(10, 2)
+  price_yearly    Decimal  @db.Decimal(10, 2)
+  features        Json?    @default("{}")
+  stripe_price_monthly String?  // Stripe price ID for monthly billing
+  stripe_price_yearly  String?  // Stripe price ID for yearly billing
+  trial_days      Int     @default(7)  // Free trial period in days
+  is_active       Boolean @default(true)
+  subscriptions   UserSubscription[]
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now()) @updatedAt
+
+  @@map("subscription_plans")
+}
+
+model UserSubscription {
+  id                    String   @id @default(uuid())
+  user                  User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id               String   @unique
+  plan                  SubscriptionPlan? @relation(fields: [plan_id], references: [id])
+  plan_id               String?
+  status                String   // 'trialing', 'active', 'past_due', 'canceled', 'unpaid', 'incomplete'
+  stripe_customer_id    String?  // Stripe customer ID
+  stripe_subscription_id String? // Stripe subscription ID
+  trial_end             DateTime? // When the trial period ends
+  current_period_start  DateTime?
+  current_period_end    DateTime?
+  created_at            DateTime @default(now())
+  updated_at            DateTime @default(now()) @updatedAt
+
+  @@map("user_subscriptions")
+}
+
+model ApiUsage {
+  id              String   @id @default(uuid())
+  user            User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  user_id         String
+  chatbot         Chatbot? @relation(fields: [chatbot_id], references: [id], onDelete: Cascade)
+  chatbot_id      String?
+  date            DateTime @db.Date
+  messages_count  Int      @default(0)
+  tokens_used     Int      @default(0)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @default(now()) @updatedAt
+
+  @@map("api_usage")
+}

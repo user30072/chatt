@@ -1,0 +1,44 @@
+{
+  "name": "chatback-api",
+  "version": "1.0.0",
+  "description": "Backend API for Chatt application",
+  "main": "index.js",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "scripts": {
+    "start": "prisma migrate deploy && NODE_ENV=production PORT=8080 node index.js",
+    "dev": "nodemon index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "prisma:validate": "prisma validate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate:dev": "prisma migrate dev",
+    "prisma:migrate:prod": "prisma migrate deploy",
+    "prisma:studio": "prisma studio",
+    "db:backup": "node scripts/backup-database.js",
+    "db:create-backup": "node scripts/create-backup.js",
+    "db:restore": "node scripts/restore-database.js",
+    "db:scheduled-backup": "node scripts/scheduled-backup.js",
+    "deploy": "node scripts/deploy.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@prisma/client": "^5.10.2",
+    "@types/jsonwebtoken": "^9.0.0",
+    "axios": "^1.9.0",
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "google-auth-library": "^9.0.0",
+    "jsonwebtoken": "^9.0.0",
+    "node-fetch": "^2.6.9",
+    "nodemailer": "^6.9.7",
+    "openai": "^4.96.0",
+    "prisma": "^5.10.2",
+    "stripe": "^14.3.0"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
+  }
+}

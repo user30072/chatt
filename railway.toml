@@ -1,0 +1,70 @@
+[build]
+builder = "nixpacks"
+
+[nixpacks]
+install_cmd = "npm install"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 5
+healthcheckPath = "/api/health"
+healthcheckTimeout = 10
+healthcheckInterval = 10
+
+[deploy.env]
+NODE_ENV = "production"
+
+[[services]]
+name = "backend"
+projectPath = "backend"
+healthcheck = "/api/health"
+startCommand = "npm start"
+buildCommand = "npm run build"
+
+[[services.ports]]
+port = 3001
+internalPort = 3001
+protocol = "http"
+
+[[services]]
+name = "frontend"
+projectPath = "frontend"
+dockerfile = "Dockerfile"
+startCommand = ""
+buildCommand = ""
+
+[[services.ports]]
+port = 3000
+internalPort = 3000
+protocol = "http"
+
+[[services]]
+name = "postgres"
+type = "postgres"
+version = "15"
+
+# Ensure data persistence with volume
+[services.postgres.volume]
+path = "/var/lib/postgresql/data"
+mountPath = "/var/lib/postgresql/data"
+size = "10Gi"
+persist = true
+
+[[plugins]]
+name = "postgres"
+
+[plugins.postgres]
+enabled = true
+
+# Database backup service
+[[services]]
+name = "backup"
+projectPath = "backend"
+startCommand = "echo 'Backup service started'"
+
+# Scheduled backups
+[[services.scheduled_tasks]]
+name = "daily-backup"
+command = "node scripts/scheduled-backup.js"
+cron = "0 3 * * *" # Run every day at 3:00 AM 
