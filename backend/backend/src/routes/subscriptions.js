@@ -37,7 +37,7 @@ router.get('/plans', async (req, res, next) => {
  */
 router.get('/current', isAuthenticated, async (req, res, next) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId || req.user.id;
     // Get the default trial length from environment variable or use 7 days as default
     const DEFAULT_TRIAL_DAYS = parseInt(process.env.DEFAULT_TRIAL_DAYS || '7');
     
@@ -60,19 +60,20 @@ router.get('/current', isAuthenticated, async (req, res, next) => {
       const trialEnd = new Date();
       trialEnd.setDate(trialEnd.getDate() + trialDays);
       
-      const subscription = await prisma.subscription.create({
+      const subscription = await prisma.userSubscription.create({
         data: {
-          userId: user.id,
-          status: 'trial',
-          planId: 'trial',
-          trialEnd: trialEnd,
-          isActive: true
+          user_id: user.id,
+          status: 'trialing',
+          plan_id: null, // No plan ID for trial
+          trial_end: trialEnd
         }
       });
       
       return res.json({ 
         subscription: {
           ...subscription,
+          isActive: subscription.status === 'trialing' || subscription.status === 'active',
+          isTrialUser: true,
           trialDaysRemaining: Math.ceil((trialEnd - new Date()) / (1000 * 60 * 60 * 24))
         },
         config: {
@@ -83,8 +84,8 @@ router.get('/current', isAuthenticated, async (req, res, next) => {
     
     // Calculate trial days remaining if in trial
     let trialDaysRemaining = 0;
-    if (user.subscription.status === 'trial' && user.subscription.trialEnd) {
-      const trialEnd = new Date(user.subscription.trialEnd);
+    if ((user.subscription.status === 'trialing' || user.subscription.status === 'trial') && user.subscription.trial_end) {
+      const trialEnd = new Date(user.subscription.trial_end);
       const now = new Date();
       trialDaysRemaining = Math.max(0, Math.ceil((trialEnd - now) / (1000 * 60 * 60 * 24)));
     }
@@ -92,6 +93,8 @@ router.get('/current', isAuthenticated, async (req, res, next) => {
     return res.json({ 
       subscription: {
         ...user.subscription,
+        isActive: user.subscription.status === 'trialing' || user.subscription.status === 'active',
+        isTrialUser: user.subscription.status === 'trialing' || user.subscription.status === 'trial',
         trialDaysRemaining
       },
       config: {
@@ -100,7 +103,16 @@ router.get('/current', isAuthenticated, async (req, res, next) => {
     });
   } catch (error) {
     console.error('Error getting subscription:', error);
-    return res.status(500).json({ message: 'Internal server error' });
+    console.error('Error stack:', error.stack);
+    console.error('Error details:', {
+      message: error.message,
+      code: error.code,
+      meta: error.meta
+    });
+    return res.status(500).json({ 
+      message: 'Internal server error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
   }
 });
 
@@ -455,7 +467,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
  */
 router.post('/setup-payment', isAuthenticated, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId || req.user.id;
     
     const user = await prisma.user.findUnique({
       where: { id: userId }
@@ -510,7 +522,7 @@ router.post('/setup-payment', isAuthenticated, async (req, res) => {
  */
 router.post('/cancel', isAuthenticated, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId || req.user.id;
     
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -547,7 +559,7 @@ router.post('/cancel', isAuthenticated, async (req, res) => {
  */
 router.post('/upgrade', isAuthenticated, async (req, res) => {
   try {
-    const userId = req.user.id;
+    const userId = req.user.userId || req.user.id;
     const { planId = 'pro' } = req.body; // Default to pro plan if not specified
     
     // Get user with subscription info
@@ -616,6 +628,32 @@ router.post('/upgrade', isAuthenticated, async (req, res) => {
   } catch (error) {
     console.error('Error creating checkout session:', error);
     return res.status(500).json({ message: 'Failed to create checkout session' });
+  }
+});
+
+/**
+ * @route POST /api/subscriptions/portal
+ * @desc Create a Stripe Billing Portal session for the current user
+ * @access Private
+ */
+router.post('/portal', isAuthenticated, async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId || req.user.id },
+      include: { subscription: true }
+    });
+    if (!user || !user.subscription || !user.subscription.stripe_customer_id) {
+      return res.status(400).json({ message: 'No Stripe customer found for this user' });
+    }
+    const returnUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/dashboard`;
+    const portalSession = await stripe.billingPortal.sessions.create({
+      customer: user.subscription.stripe_customer_id,
+      return_url: returnUrl
+    });
+    return res.json({ url: portalSession.url });
+  } catch (error) {
+    console.error('Error creating billing portal session:', error);
+    return res.status(500).json({ message: 'Failed to create billing portal session' });
   }
 });
 

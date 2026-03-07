@@ -2,6 +2,8 @@ const fs = require('fs');
 const path = require('path');
 const { generateEmbedding } = require('./ai');
 const pdfParse = require('pdf-parse');
+const pineconeService = require('./pineconeService');
+const prisma = require('../lib/prisma');
 
 /**
  * Process an uploaded document
@@ -159,6 +161,17 @@ const chunkText = (text, maxChunkSize = 1000) => {
  * @param {Array<string>} chunks - Array of text chunks
  */
 const processChunks = async (documentId, chunks) => {
+  // Get document info for metadata
+  const document = await prisma.document.findUnique({
+    where: { id: documentId },
+    select: { name: true, user_id: true }
+  });
+
+  if (!document) {
+    console.error(`Document ${documentId} not found`);
+    return;
+  }
+
   for (const [index, content] of chunks.entries()) {
     try {
       // Generate embedding
@@ -169,18 +182,34 @@ const processChunks = async (documentId, chunks) => {
         continue;
       }
       
-      // Store chunk in database
-      await prisma.documentChunk.create({
+      // Create chunk ID
+      const chunkId = `${documentId}_chunk_${index}`;
+      
+      // Store chunk in database (without embedding)
+      const chunk = await prisma.documentChunk.create({
         data: {
-          document_id: documentId,
+          documentId: documentId,
           content,
-          embedding,
           metadata: {
             chunkIndex: index,
             chunkCount: chunks.length
           }
         }
       });
+      
+      // Store embedding in Pinecone
+      const metadata = {
+        content: content,
+        documentId: documentId,
+        documentName: document.name,
+        userId: document.user_id,
+        chunkIndex: index,
+        chunkCount: chunks.length,
+        chunkId: chunk.id
+      };
+      
+      await pineconeService.storeDocumentChunk(chunkId, embedding, metadata);
+      
     } catch (error) {
       console.error(`Error processing chunk ${index} of document ${documentId}:`, error);
     }

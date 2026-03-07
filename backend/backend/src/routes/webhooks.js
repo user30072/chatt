@@ -28,20 +28,20 @@ router.post('/stripe', stripeWebhookMiddleware, async (req, res, next) => {
         const subscription = event.data.object;
         const stripeCustomerId = subscription.customer;
         
-        // Find organization by Stripe customer ID
-        const orgSubscription = await prisma.organizationSubscription.findFirst({
+        // Find user subscription by Stripe customer ID
+        const userSub = await prisma.userSubscription.findFirst({
           where: { stripe_customer_id: stripeCustomerId },
-          include: { organization: true }
+          include: { user: true }
         });
         
-        if (!orgSubscription) {
-          console.error('Organization subscription not found for Stripe customer:', stripeCustomerId);
+        if (!userSub) {
+          console.error('User subscription not found for Stripe customer:', stripeCustomerId);
           return res.status(200).send('No matching subscription found');
         }
         
         // Update subscription status and period in our database
-        await prisma.organizationSubscription.update({
-          where: { id: orgSubscription.id },
+        await prisma.userSubscription.update({
+          where: { user_id: userSub.user_id },
           data: {
             status: subscription.status,
             stripe_subscription_id: subscription.id,
@@ -51,22 +51,22 @@ router.post('/stripe', stripeWebhookMiddleware, async (req, res, next) => {
           }
         });
         
-        console.log(`Subscription ${subscription.id} updated for organization ${orgSubscription.organization.name}`);
+        console.log(`Subscription ${subscription.id} updated for user ${userSub.user?.email || userSub.user_id}`);
         break;
       }
       
       case 'customer.subscription.deleted': {
         const subscription = event.data.object;
         
-        // Find organization by Stripe subscription ID
-        const orgSubscription = await prisma.organizationSubscription.findFirst({
+        // Find user subscription by Stripe subscription ID
+        const userSub = await prisma.userSubscription.findFirst({
           where: { stripe_subscription_id: subscription.id }
         });
         
-        if (orgSubscription) {
+        if (userSub) {
           // Update subscription status to canceled
-          await prisma.organizationSubscription.update({
-            where: { id: orgSubscription.id },
+          await prisma.userSubscription.update({
+            where: { user_id: userSub.user_id },
             data: { status: 'canceled' }
           });
           
@@ -79,16 +79,15 @@ router.post('/stripe', stripeWebhookMiddleware, async (req, res, next) => {
         // Sent 3 days before trial ends
         const subscription = event.data.object;
         
-        // Find organization by Stripe subscription ID
-        const orgSubscription = await prisma.organizationSubscription.findFirst({
+        // Find user subscription by Stripe subscription ID
+        const userSub = await prisma.userSubscription.findFirst({
           where: { stripe_subscription_id: subscription.id },
-          include: { organization: true }
+          include: { user: true }
         });
         
-        if (orgSubscription) {
+        if (userSub) {
           // Here you would send an email to notify the user that trial is ending
-          console.log(`Trial ending soon for organization ${orgSubscription.organization.name}`);
-          
+          console.log(`Trial ending soon for user ${userSub.user?.email || userSub.user_id}`);
           // You could implement email notification logic here
         }
         break;
@@ -103,15 +102,15 @@ router.post('/stripe', stripeWebhookMiddleware, async (req, res, next) => {
           
           const subscription = await stripe.subscriptions.retrieve(invoice.subscription);
           
-          // Find organization by Stripe subscription ID
-          const orgSubscription = await prisma.organizationSubscription.findFirst({
+          // Find user subscription by Stripe subscription ID
+          const userSub = await prisma.userSubscription.findFirst({
             where: { stripe_subscription_id: invoice.subscription }
           });
           
-          if (orgSubscription) {
+          if (userSub) {
             // Update subscription status to active (in case it was past_due)
-            await prisma.organizationSubscription.update({
-              where: { id: orgSubscription.id },
+            await prisma.userSubscription.update({
+              where: { user_id: userSub.user_id },
               data: { status: 'active' }
             });
             
@@ -124,21 +123,20 @@ router.post('/stripe', stripeWebhookMiddleware, async (req, res, next) => {
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
         
-        // Find organization by Stripe subscription ID
-        const orgSubscription = await prisma.organizationSubscription.findFirst({
+        // Find user subscription by Stripe subscription ID
+        const userSub = await prisma.userSubscription.findFirst({
           where: { stripe_subscription_id: invoice.subscription },
-          include: { organization: true }
+          include: { user: true }
         });
         
-        if (orgSubscription) {
+        if (userSub) {
           // Update subscription status to past_due
-          await prisma.organizationSubscription.update({
-            where: { id: orgSubscription.id },
+          await prisma.userSubscription.update({
+            where: { user_id: userSub.user_id },
             data: { status: 'past_due' }
           });
           
           console.log(`Payment failed for subscription ${invoice.subscription}`);
-          
           // You could implement email notification logic here
         }
         break;

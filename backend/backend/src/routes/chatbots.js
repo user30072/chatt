@@ -1,5 +1,6 @@
 const express = require('express');
-const { isAuthenticated, isAdmin, belongsToUser } = require('../middleware/auth');
+const { isAuthenticated, isAdmin, belongsToUser, hasActiveSubscriptionOrTrial } = require('../middleware/auth');
+const { enforceChatbotCreationLimit, enforceMonthlyUsageLimit } = require('../middleware/limits');
 const { validateChatbot } = require('../middleware/validation');
 const { generateChatResponse } = require('../services/ai');
 const { prisma } = require('../db');
@@ -122,7 +123,7 @@ router.get('/:id', isAuthenticated, belongsToUser('chatbot'), async (req, res, n
  * @desc Create a new chatbot for the user
  * @access Private
  */
-router.post('/', isAuthenticated, validateChatbot, async (req, res, next) => {
+router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, enforceChatbotCreationLimit, validateChatbot, async (req, res, next) => {
   try {
     const {
       name,
@@ -287,6 +288,7 @@ router.post('/:id/chat', async (req, res, next) => {
     const chatbotId = req.params.id;
     const { message, conversation_id, visitor_id, metadata } = req.body;
     const apiKey = req.headers['x-api-key'];
+    const requestOrigin = req.headers.origin || req.headers.referer || '';
     let userId = null;
     
     if (!message) {
@@ -323,6 +325,21 @@ router.post('/:id/chat', async (req, res, next) => {
       if (!integration) {
         return res.status(401).json({ message: 'Invalid API key' });
       }
+      // Optional domain enforcement: if a specific domain is configured, ensure origin matches
+      if (integration.domain && integration.domain !== '*' && requestOrigin) {
+        try {
+          const originUrl = new URL(requestOrigin);
+          const originHost = originUrl.hostname.toLowerCase();
+          const allowed = integration.domain.toLowerCase();
+          const matches = originHost === allowed || originHost.endsWith(`.${allowed}`);
+          if (!matches) {
+            return res.status(403).json({ message: 'Origin not allowed for this API key' });
+          }
+        } catch (_) {
+          // If origin is malformed, reject
+          return res.status(403).json({ message: 'Invalid origin' });
+        }
+      }
       
       // Use the chatbot owner's user ID
       userId = chatbot.user_id;
@@ -342,8 +359,27 @@ router.post('/:id/chat', async (req, res, next) => {
     if (!userId) {
       return res.status(401).json({ message: 'Authentication required' });
     }
+
+    // Enforce owner subscription (active or trialing) even for public widget usage
+    const ownerSub = await prisma.userSubscription.findUnique({
+      where: { user_id: chatbot.user_id }
+    });
+    const ownerActive = ownerSub && ['active', 'trialing'].includes(ownerSub.status);
+    if (!ownerActive) {
+      return res.status(402).json({ message: 'Chatbot is unavailable due to inactive subscription' });
+    }
     
-    // Get or create conversation
+  // Enforce monthly usage limits when authenticated calls (best-effort for public as well)
+  try {
+    if (req.user) {
+      const { enforceMonthlyUsageLimit } = require('../middleware/limits');
+      await new Promise((resolve, reject) => enforceMonthlyUsageLimit(req, res, (err) => err ? reject(err) : resolve()));
+    }
+  } catch (limitErr) {
+    return; // Response already sent by limiter
+  }
+
+  // Get or create conversation
     let conversation;
     if (conversation_id) {
       conversation = await prisma.conversation.findUnique({
@@ -416,7 +452,7 @@ router.post('/:id/chat', async (req, res, next) => {
         user_id: userId,
         role: 'assistant',
         content: aiResponse.message,
-        tokens_used: aiResponse.tokens
+        tokens_used: aiResponse.tokensUsed
       }
     });
     
@@ -427,7 +463,7 @@ router.post('/:id/chat', async (req, res, next) => {
       },
       update: {
         messages_count: { increment: 1 },
-        tokens_used: { increment: aiResponse.tokens }
+        tokens_used: { increment: aiResponse.tokensUsed }
       },
       create: {
         id: `${chatbot.user_id}-${chatbotId}-${new Date().toISOString().split('T')[0]}`,
@@ -435,7 +471,7 @@ router.post('/:id/chat', async (req, res, next) => {
         chatbot_id: chatbotId,
         date: new Date(),
         messages_count: 1,
-        tokens_used: aiResponse.tokens
+        tokens_used: aiResponse.tokensUsed
       }
     });
     
@@ -447,7 +483,7 @@ router.post('/:id/chat', async (req, res, next) => {
         event_type: 'message',
         event_data: {
           message_type: 'ai_response',
-          tokens_used: aiResponse.tokens
+          tokens_used: aiResponse.tokensUsed
         },
         user_agent: req.headers['user-agent'],
         ip_address: req.ip

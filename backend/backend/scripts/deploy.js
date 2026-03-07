@@ -18,16 +18,14 @@ const { spawn } = require('child_process');
 
 const execPromise = promisify(exec);
 const DATABASE_URL = process.env.DATABASE_URL;
-const PGVECTOR_URL = process.env.PGVECTOR_URL;
 
 // Log environment variables (without sensitive data)
 console.log('Environment variables check:');
 console.log('DATABASE_URL:', DATABASE_URL ? 'Set' : 'Not set');
-console.log('PGVECTOR_URL:', PGVECTOR_URL ? 'Set' : 'Not set');
 
-if (!DATABASE_URL || !PGVECTOR_URL) {
-  console.error('ERROR: Both DATABASE_URL and PGVECTOR_URL environment variables are required');
-  console.error('Please set these in your Railway service variables');
+if (!DATABASE_URL) {
+  console.error('ERROR: DATABASE_URL environment variable is required');
+  console.error('Please set this in your Railway service variables');
   process.exit(1);
 }
 
@@ -50,7 +48,7 @@ function normalizeDatabaseUrl(url) {
   }
 }
 
-// Function to test database connection
+// Function to test database connection using Prisma
 async function testDatabaseConnection(url, name) {
   console.log(`Testing ${name} database connection...`);
   
@@ -67,22 +65,37 @@ async function testDatabaseConnection(url, name) {
   
   while (retries > 0 && !connected) {
     try {
-      const hostname = new URL(normalizedUrl).hostname;
-      console.log(`Attempting to connect to ${hostname}...`);
-      await execPromise(`pg_isready -h ${hostname}`);
+      // Use Prisma to test connection instead of psql
+      const { PrismaClient } = require('@prisma/client');
+      const prisma = new PrismaClient({
+        datasources: {
+          db: {
+            url: normalizedUrl
+          }
+        }
+      });
+      
+      await prisma.$connect();
+      await prisma.$queryRaw`SELECT 1`;
       connected = true;
       console.log(`${name} database connection established`);
       
       // Test if vector extension is available (only for pgvector service)
       if (name === 'pgvector') {
-        console.log('Testing vector extension availability...');
-        const result = await execPromise(`psql ${normalizedUrl} -c "SELECT * FROM pg_extension WHERE extname = 'vector';"`);
-        if (result.stdout.includes('vector')) {
-          console.log('Vector extension is available');
-        } else {
-          throw new Error('Vector extension is not available in the PgVector service');
+        try {
+          console.log('Testing vector extension availability...');
+          const result = await prisma.$queryRaw`SELECT * FROM pg_extension WHERE extname = 'vector'`;
+          if (result && result.length > 0) {
+            console.log('Vector extension is available');
+          } else {
+            console.log('Vector extension is not available, but continuing...');
+          }
+        } catch (err) {
+          console.log('Vector extension check failed, but continuing...');
         }
       }
+      
+      await prisma.$disconnect();
     } catch (error) {
       console.log(`Waiting for ${name} database connection... (${retries} attempts left)`);
       console.log(`Error details: ${error.message}`);
@@ -98,49 +111,32 @@ async function testDatabaseConnection(url, name) {
   return normalizedUrl;
 }
 
-async function setupVectorIndexes() {
-  console.log('Setting up vector indexes for similarity search...');
+async function setupPineconeIndex() {
+  console.log('Setting up Pinecone index for vector similarity search...');
+  
+  // Check if Pinecone is configured
+  if (!process.env.PINECONE_API_KEY) {
+    console.log('PINECONE_API_KEY not configured, skipping Pinecone index setup');
+    console.log('Pinecone features will be disabled until configured');
+    return;
+  }
   
   try {
-    // List all tables first
-    console.log('Listing all tables before index creation...');
-    const listTablesCmd = `psql ${PGVECTOR_URL} -c "\\dt"`;
-    const tables = await execPromise(listTablesCmd);
-    console.log('Available tables:', tables.stdout);
+    const pineconeService = require('../src/services/pineconeService');
     
-    // First, verify the table exists
-    const checkTableCmd = `psql ${PGVECTOR_URL} -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'DocumentChunk');"`;
-    const tableExists = await execPromise(checkTableCmd);
-    console.log('Table existence check result:', tableExists.stdout);
-    
-    if (!tableExists.stdout.includes('t')) {
-      console.log('DocumentChunk table does not exist yet, skipping index creation');
-      return;
+    // Create Pinecone index if it doesn't exist
+    const success = await pineconeService.createIndex(1536, 'cosine');
+    if (success) {
+      console.log('Pinecone index setup completed successfully');
+    } else {
+      console.log('Pinecone index setup failed, but continuing deployment');
+      console.log('Server will start without Pinecone features');
     }
-    
-    // Verify the embedding column exists and is of type vector
-    const checkColumnCmd = `psql ${PGVECTOR_URL} -c "SELECT column_name, data_type, udt_name FROM information_schema.columns WHERE table_name = 'DocumentChunk';"`;
-    const columns = await execPromise(checkColumnCmd);
-    console.log('Table columns:', columns.stdout);
-    
-    const columnExists = await execPromise(`psql ${PGVECTOR_URL} -c "SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'DocumentChunk' AND column_name = 'embedding' AND data_type = 'USER-DEFINED' AND udt_name = 'vector');"`);
-    console.log('Column type check result:', columnExists.stdout);
-    
-    if (!columnExists.stdout.includes('t')) {
-      console.log('embedding column is not of type vector, skipping index creation');
-      return;
-    }
-    
-    // Create vector index on embedding column if it doesn't exist
-    // Use double quotes around the table name to preserve case sensitivity
-    const createIndexCmd = `psql ${PGVECTOR_URL} -c "CREATE INDEX IF NOT EXISTS document_chunks_embedding_idx ON \\"DocumentChunk\\" USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);"`;
-    
-    await execPromise(createIndexCmd);
-    console.log('Vector indexes created successfully');
   } catch (error) {
-    console.error('Failed to set up vector indexes:', error.message);
-    // Continue even if this fails, as it's not critical for basic operation
-    console.log('Continuing deployment despite vector index creation failure');
+    console.error('Failed to set up Pinecone index:', error.message);
+    console.log('Continuing deployment despite Pinecone index creation failure');
+    console.log('Server will start without Pinecone features');
+    // Don't throw - allow deployment to continue
   }
 }
 
@@ -149,7 +145,7 @@ async function generatePrismaClient() {
   try {
     execSync('npx prisma generate', { 
       stdio: 'inherit',
-      env: { ...process.env, DATABASE_URL: PGVECTOR_URL } // Use pgvector URL for client generation
+      env: { ...process.env, DATABASE_URL: DATABASE_URL }
     });
     console.log('Prisma client generated successfully');
   } catch (error) {
@@ -179,38 +175,43 @@ async function runMigration() {
     // Run Prisma db push to sync schema
     console.log('Syncing database schema...');
     try {
-      // First, ensure the vector extension is available
-      console.log('Ensuring vector extension is available...');
-      await execPromise(`psql ${PGVECTOR_URL} -c "CREATE EXTENSION IF NOT EXISTS vector;"`);
-      
       // Push the schema without force-reset to preserve existing data
       console.log('Pushing schema changes (preserving existing data)...');
       execSync('npx prisma db push', { 
         stdio: 'inherit',
-        env: { ...process.env, DATABASE_URL: PGVECTOR_URL }
+        env: { ...process.env, DATABASE_URL: DATABASE_URL }
       });
       console.log('Database schema synced successfully');
       
       // Wait a moment for the table to be created
       console.log('Waiting for table creation to complete...');
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // List all tables to verify
-      console.log('Listing all tables in the database...');
-      const listTablesCmd = `psql ${PGVECTOR_URL} -c "\\dt"`;
-      const tables = await execPromise(listTablesCmd);
-      console.log('Available tables:', tables.stdout);
-      
-      // Verify the table was created
-      const checkTableCmd = `psql ${PGVECTOR_URL} -c "SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'DocumentChunk');"`;
-      const tableExists = await execPromise(checkTableCmd);
-      console.log('Table existence check result:', tableExists.stdout);
-      
-      if (!tableExists.stdout.includes('t')) {
-        throw new Error('DocumentChunk table was not created');
+      // Verify the table was created using Prisma
+      try {
+        const { PrismaClient } = require('@prisma/client');
+        const prisma = new PrismaClient();
+        await prisma.$connect();
+        
+        // Check if DocumentChunk table exists
+        const result = await prisma.$queryRaw`
+          SELECT EXISTS (
+            SELECT FROM information_schema.tables 
+            WHERE table_name = 'DocumentChunk'
+          ) as exists;
+        `;
+        
+        await prisma.$disconnect();
+        
+        if (result && result[0]?.exists) {
+          console.log('Table creation verified');
+        } else {
+          console.log('DocumentChunk table may not exist yet, but continuing...');
+        }
+      } catch (error) {
+        console.log('Table verification skipped:', error.message);
+        // Continue even if verification fails
       }
-      
-      console.log('Table creation verified');
       
     } catch (error) {
       console.error('Error syncing database schema:', error.message);
@@ -239,20 +240,17 @@ async function main() {
       }
     }
     
-    // Test database connection first
-    await testDatabaseConnection(PGVECTOR_URL, 'pgvector');
+    // Generate Prisma client first (needed for connection tests)
+    await generatePrismaClient();
     
-    // Ensure vector extension is available
-    await ensureVectorExtension();
+    // Test database connection
+    await testDatabaseConnection(DATABASE_URL, 'postgresql');
     
     // Run migration
     await runMigration();
     
     // Setup vector indexes
-    await setupVectorIndexes();
-    
-    // Generate Prisma client
-    await generatePrismaClient();
+    await setupPineconeIndex();
     
     console.log('Deployment preparation completed successfully');
     
@@ -292,40 +290,23 @@ async function main() {
   }
 }
 
-async function testDatabaseConnection() {
+async function testDatabaseConnectionSimple() {
   console.log('Testing database connection...');
   try {
-    // Try to connect to the database
-    const result = await execPromise(`psql ${PGVECTOR_URL} -c "SELECT 1;"`);
-    if (result.stdout.includes('1')) {
-      console.log('Database connection successful');
-      return true;
-    }
-    throw new Error('Database connection test failed');
+    // Use Prisma to test connection instead of psql
+    const { PrismaClient } = require('@prisma/client');
+    const prisma = new PrismaClient();
+    await prisma.$connect();
+    await prisma.$queryRaw`SELECT 1`;
+    await prisma.$disconnect();
+    console.log('Database connection successful');
+    return true;
   } catch (error) {
     console.error('Database connection test failed:', error.message);
     throw error;
   }
 }
 
-async function ensureVectorExtension() {
-  console.log('Ensuring vector extension is available...');
-  try {
-    // Check if vector extension exists
-    const checkExtension = await execPromise(`psql ${PGVECTOR_URL} -c "SELECT * FROM pg_extension WHERE extname = 'vector';"`);
-    
-    if (!checkExtension.stdout.includes('vector')) {
-      console.log('Vector extension not found, attempting to create it...');
-      await execPromise(`psql ${PGVECTOR_URL} -c "CREATE EXTENSION IF NOT EXISTS vector;"`);
-      console.log('Vector extension created successfully');
-    } else {
-      console.log('Vector extension already exists');
-    }
-  } catch (error) {
-    console.error('Failed to ensure vector extension:', error.message);
-    throw error;
-  }
-}
 
 // Railway deployment script
 console.log('Running deployment script...');

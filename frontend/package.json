@@ -1,0 +1,10 @@
+{
+  "name": "frontend-runner",
+  "private": true,
+  "engines": { "node": ">=18.0.0" },
+  "scripts": {
+    "start": "cd frontend && npm install --omit=dev && npm run build:all && npm start"
+  }
+}
+
+

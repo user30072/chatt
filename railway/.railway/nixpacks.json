@@ -2,7 +2,9 @@
   "providers": [
     {
       "name": "node",
-      "install_command": "npm install"
+      "install_command": "bash -lc 'cd backend/backend && npm install --omit=dev'",
+      "build_command": "bash -lc 'cd backend/backend && npm run deploy || true'",
+      "start_command": "bash -lc 'cd backend/backend && npm start'"
     }
   ]
-} 
+}

@@ -53,13 +53,9 @@ const validateChatbot = (req, res, next) => {
     return res.status(400).json({ message: 'Chatbot name is required' });
   }
   
-  if (!prompt_template) {
-    return res.status(400).json({ message: 'Prompt template is required' });
-  }
-  
-  if (!system_message) {
-    return res.status(400).json({ message: 'System message is required' });
-  }
+  // prompt_template is optional - can be undefined/null
+  // system_message is optional - defaults to "You are a helpful assistant."
+  // Both are handled with defaults in the route handler
   
   next();
 };

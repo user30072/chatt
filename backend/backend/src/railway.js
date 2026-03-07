@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3001;
 
 // CORS configuration with full support
 const corsOptions = {
-  origin: ['https://chatfront-production-2f1d.up.railway.app', 'http://localhost:3000'],
+  origin: (process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : ['http://localhost:3000']),
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
   allowedHeaders: [
     'Content-Type', 

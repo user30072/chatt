@@ -1,13 +1,38 @@
 const axios = require('axios');
-const { Configuration, OpenAIApi } = require('openai');
+// Handle OpenAI SDK v4+ (new API) vs v3 (old API)
+let OpenAI;
+let openai;
+try {
+  const openaiModule = require('openai');
+  
+  // OpenAI SDK v4+ exports OpenAI class directly
+  // v3 exports Configuration and OpenAIApi
+  if (openaiModule.OpenAI && typeof openaiModule.OpenAI === 'function') {
+    // v4+ API
+    OpenAI = openaiModule.OpenAI;
+    openai = new OpenAI({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    console.log('Using OpenAI SDK v4+');
+  } else if (openaiModule.Configuration && openaiModule.OpenAIApi) {
+    // v3 API - fallback
+    const { Configuration, OpenAIApi } = openaiModule;
+    const openaiConfig = new Configuration({
+      apiKey: process.env.OPENAI_API_KEY,
+    });
+    openai = new OpenAIApi(openaiConfig);
+    console.log('Using OpenAI SDK v3');
+  } else {
+    throw new Error('Unsupported OpenAI SDK version');
+  }
+} catch (error) {
+  console.warn('OpenAI SDK not available:', error.message);
+  openai = null;
+}
+
 const Anthropic = require('@anthropic-ai/sdk');
 const prisma = require('../lib/prisma');
-
-// Initialize OpenAI
-const openaiConfig = new Configuration({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-const openai = new OpenAIApi(openaiConfig);
+const pineconeService = require('./pineconeService');
 
 // Initialize Anthropic
 const anthropic = new Anthropic({
@@ -50,25 +75,28 @@ async function retrieveRelevantDocuments(chatbotId, query, limit = 5) {
       return [];
     }
     
-    // Perform vector similarity search
-    const documentChunks = await prisma.$queryRaw`
-      SELECT 
-        dc.id,
-        dc.content,
-        dc.document_id,
-        d.name as document_name,
-        (dc.embedding <=> ${queryEmbedding}::vector) as similarity_score
-      FROM 
-        document_chunks dc
-      JOIN
-        documents d ON dc.document_id = d.id
-      WHERE 
-        d.id IN (${documentIds})
-        AND d.status = 'processed'
-      ORDER BY 
-        similarity_score ASC
-      LIMIT ${limit}
-    `;
+    // Verify documents are processed
+    const processedDocuments = await prisma.document.findMany({
+      where: {
+        id: { in: documentIds },
+        status: 'processed'
+      },
+      select: { id: true }
+    });
+    
+    const processedDocumentIds = processedDocuments.map(doc => doc.id);
+    
+    if (processedDocumentIds.length === 0) {
+      console.log(`No processed documents for chatbot ${chatbotId}`);
+      return [];
+    }
+    
+    // Perform vector similarity search using Pinecone
+    const documentChunks = await pineconeService.searchSimilarChunks(
+      queryEmbedding,
+      processedDocumentIds,
+      limit
+    );
     
     return documentChunks;
   } catch (error) {
@@ -134,12 +162,9 @@ async function generateChatResponse(chatbot, userMessage, history = []) {
       tokensUsed = response.tokensUsed;
     }
     
-    // Log usage to database
-    await logUsage(chatbot.id, chatbot.organization_id, tokensUsed);
-    
     return {
       message: response.message,
-      tokens: tokensUsed,
+      tokensUsed: tokensUsed,
       documents_used: documentChunks.length > 0 ? documentChunks.map(chunk => ({
         id: chunk.document_id,
         name: chunk.document_name
@@ -161,6 +186,10 @@ async function generateChatResponse(chatbot, userMessage, history = []) {
  * Generate a response using OpenAI API
  */
 async function generateOpenAIResponse(systemMessage, userMessage, history, model, temperature) {
+  if (!openai) {
+    throw new Error('OpenAI client not initialized');
+  }
+  
   // Format messages for OpenAI
   const messages = [
     { role: 'system', content: systemMessage },
@@ -168,17 +197,37 @@ async function generateOpenAIResponse(systemMessage, userMessage, history, model
     { role: 'user', content: userMessage }
   ];
   
-  const response = await openai.createChatCompletion({
-    model: model,
-    messages: messages,
-    temperature: temperature,
-    max_tokens: 2000,
-  });
-  
-  return {
-    message: response.data.choices[0].message.content,
-    tokensUsed: response.data.usage.total_tokens
-  };
+  // Handle both v4+ and v3 APIs
+  let response;
+  if (openai.chat && typeof openai.chat.completions.create === 'function') {
+    // v4+ API
+    response = await openai.chat.completions.create({
+      model: model,
+      messages: messages,
+      temperature: temperature,
+      max_tokens: 2000,
+    });
+    
+    return {
+      message: response.choices[0].message.content,
+      tokensUsed: response.usage.total_tokens
+    };
+  } else if (openai.createChatCompletion) {
+    // v3 API
+    response = await openai.createChatCompletion({
+      model: model,
+      messages: messages,
+      temperature: temperature,
+      max_tokens: 2000,
+    });
+    
+    return {
+      message: response.data.choices[0].message.content,
+      tokensUsed: response.data.usage.total_tokens
+    };
+  } else {
+    throw new Error('Unsupported OpenAI API version');
+  }
 }
 
 /**
@@ -231,49 +280,6 @@ function estimateTokenCount(text) {
   return Math.ceil(text.length / 4);
 }
 
-/**
- * Log usage to database for billing and analytics
- */
-async function logUsage(chatbotId, organizationId, tokensUsed) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  
-  try {
-    // Find existing usage record for today
-    const existingUsage = await prisma.apiUsage.findFirst({
-      where: {
-        organization_id: organizationId,
-        chatbot_id: chatbotId,
-        date: today
-      }
-    });
-    
-    if (existingUsage) {
-      // Update existing record
-      await prisma.apiUsage.update({
-        where: { id: existingUsage.id },
-        data: {
-          messages_count: { increment: 1 },
-          tokens_used: { increment: tokensUsed }
-        }
-      });
-    } else {
-      // Create new record
-      await prisma.apiUsage.create({
-        data: {
-          organization_id: organizationId,
-          chatbot_id: chatbotId,
-          date: today,
-          messages_count: 1,
-          tokens_used: tokensUsed
-        }
-      });
-    }
-  } catch (error) {
-    console.error('Error logging API usage:', error);
-    // Don't throw, just log error
-  }
-}
 
 /**
  * Generates an embedding vector for text using OpenAI's embedding API
@@ -281,6 +287,11 @@ async function logUsage(chatbotId, organizationId, tokensUsed) {
  * @returns {Promise<Array<number>>} - The embedding vector
  */
 async function generateEmbedding(text) {
+  if (!openai) {
+    console.error('OpenAI client not initialized');
+    return null;
+  }
+  
   try {
     // Truncate text if it's too long (OpenAI's embedding API has token limits)
     const maxLength = 8000; // Approximate character limit for embedding
@@ -288,14 +299,27 @@ async function generateEmbedding(text) {
       ? text.substring(0, maxLength) 
       : text;
     
-    // Call OpenAI's embedding API
-    const response = await openai.createEmbedding({
-      model: "text-embedding-ada-002",
-      input: truncatedText,
-    });
-    
-    // Return the embedding vector
-    return response.data.data[0].embedding;
+    // Handle both v4+ and v3 APIs
+    let response;
+    if (openai.embeddings && typeof openai.embeddings.create === 'function') {
+      // v4+ API
+      response = await openai.embeddings.create({
+        model: "text-embedding-ada-002",
+        input: truncatedText,
+      });
+      
+      return response.data[0].embedding;
+    } else if (openai.createEmbedding) {
+      // v3 API
+      response = await openai.createEmbedding({
+        model: "text-embedding-ada-002",
+        input: truncatedText,
+      });
+      
+      return response.data.data[0].embedding;
+    } else {
+      throw new Error('Unsupported OpenAI API version');
+    }
   } catch (error) {
     console.error('Error generating embedding:', error);
     return null;

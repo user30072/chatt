@@ -72,7 +72,6 @@ const app = express();
 // Set up CORS middleware
 app.use(cors({
   origin: process.env.CORS_ORIGIN?.split(',') || [
-    'https://chatfront-production-2f1d.up.railway.app',
     process.env.FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
@@ -83,13 +82,21 @@ app.use(cors({
 // Middleware
 app.use(helmet({
   contentSecurityPolicy: false,
-  crossOriginEmbedderPolicy: false
+  crossOriginEmbedderPolicy: false,
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' }
 }));
+
+// Add middleware to set Cross-Origin-Opener-Policy header for Google OAuth
+app.use((req, res, next) => {
+  // Allow popups for Google OAuth postMessage communication
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  next();
+});
 
 // Add explicit handling for preflight requests
 app.options('*', cors({
   origin: process.env.CORS_ORIGIN?.split(',') || [
-    'https://chatfront-production-2f1d.up.railway.app',
     process.env.FRONTEND_URL
   ].filter(Boolean),
   credentials: true,
@@ -152,7 +159,11 @@ app.use('/api/users', isAuthenticated, userRoutes);
 app.use('/api/subscriptions', isAuthenticated, subscriptionRoutes);
 
 // Protected routes - requiring authentication + payment method
-app.use('/api/chatbots', isAuthenticated, chatbotRoutes);
+app.use('/api/chatbots', (req, res, next) => {
+  console.log(`[ROUTE] /api/chatbots matched: ${req.method} ${req.path}`);
+  console.log(`[ROUTE] Auth header: ${req.headers.authorization ? 'Present' : 'Missing'}`);
+  next();
+}, isAuthenticated, chatbotRoutes);
 app.use('/api/conversations', isAuthenticated, hasActiveSubscriptionOrTrial, conversationRoutes);
 app.use('/api/documents', isAuthenticated, hasActiveSubscriptionOrTrial, documentRoutes);
 app.use('/api/analytics', isAuthenticated, hasActiveSubscriptionOrTrial, analyticsRoutes);

@@ -5,7 +5,7 @@ const app = express();
 
 // Use comma-separated list of origins
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:3000';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://chatfront-production-2f1d.up.railway.app';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || (process.env.FRONTEND_URL || 'http://localhost:3000');
 
 // Build array of allowed origins from environment variables
 let ALLOWED_ORIGINS = Array.from(new Set([

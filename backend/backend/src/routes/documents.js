@@ -71,7 +71,10 @@ router.get('/:id', isAuthenticated, async (req, res, next) => {
  * @desc Upload a new document
  * @access Private
  */
-router.post('/', isAuthenticated, uploadSingleFile('file'), async (req, res, next) => {
+const { hasActiveSubscriptionOrTrial } = require('../middleware/auth');
+const { enforceFileSizeLimit } = require('../middleware/limits');
+
+router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, uploadSingleFile('file'), enforceFileSizeLimit, async (req, res, next) => {
   try {
     // Create document record from form data
     const { name } = req.body;

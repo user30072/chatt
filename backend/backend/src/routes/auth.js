@@ -414,13 +414,12 @@ router.post('/google', async (req, res) => {
         data: {
           email,
           username,
-          firstName,
-          lastName,
+          first_name: firstName,
+          last_name: lastName,
           image: picture,
           authProvider: 'google',
           authProviderId: googleId,
-          isEmailVerified: true, // Google emails are verified
-          password: null, // No password for Google auth users
+          password_hash: null
         },
       });
       
@@ -458,8 +457,7 @@ router.post('/google', async (req, res) => {
         data: {
           authProvider: 'google',
           authProviderId: googleId,
-          image: picture || user.image,
-          isEmailVerified: true, // Ensure email is marked as verified
+          image: picture || user.image
         },
       });
     }
@@ -483,12 +481,12 @@ router.post('/google', async (req, res) => {
         id: user.id,
         email: user.email,
         username: user.username,
-        firstName: user.firstName,
-        lastName: user.lastName,
+        firstName: user.first_name,
+        lastName: user.last_name,
         image: user.image,
         authProvider: user.authProvider,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
+        createdAt: user.created_at,
+        updatedAt: user.updated_at,
       },
     });
   } catch (error) {
