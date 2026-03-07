@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>CORS Test</title>
+  <script>
+    window.onload = function() {
+      const backendUrl = (new URLSearchParams(location.search).get('api') || (location.origin + '/api'));
+      
+      // Log to console
+      console.log('Starting CORS tests');
+      document.getElementById('status').textContent = 'Running tests...';
+      
+      // First test - options request
+      fetch(`${backendUrl}/health`, {
+        method: 'OPTIONS',
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      })
+      .then(response => {
+        document.getElementById('options-status').textContent = 'SUCCESS';
+        document.getElementById('options-result').textContent = `Status: ${response.status}`;
+        return response;
+      })
+      .catch(error => {
+        document.getElementById('options-status').textContent = 'FAILED';
+        document.getElementById('options-result').textContent = `Error: ${error.message}`;
+      });
+      
+      // Second test - GET request
+      fetch(`${backendUrl}/health`)
+      .then(response => {
+        document.getElementById('get-status').textContent = 'SUCCESS';
+        document.getElementById('get-result').textContent = `Status: ${response.status}`;
+        return response.json();
+      })
+      .then(data => {
+        document.getElementById('get-data').textContent = JSON.stringify(data, null, 2);
+      })
+      .catch(error => {
+        document.getElementById('get-status').textContent = 'FAILED';
+        document.getElementById('get-result').textContent = `Error: ${error.message}`;
+      });
+      
+      // Third test - POST request
+      fetch(`${backendUrl}/auth/signup`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: 'test@example.com',
+          password: 'password123',
+          firstName: 'Test',
+          lastName: 'User',
+          organizationName: 'Test Org'
+        })
+      })
+      .then(response => {
+        document.getElementById('post-status').textContent = 'SUCCESS';
+        document.getElementById('post-result').textContent = `Status: ${response.status}`;
+        return response.json();
+      })
+      .then(data => {
+        document.getElementById('post-data').textContent = JSON.stringify(data, null, 2);
+      })
+      .catch(error => {
+        document.getElementById('post-status').textContent = 'FAILED';
+        document.getElementById('post-result').textContent = `Error: ${error.message}`;
+      });
+      
+      document.getElementById('status').textContent = 'Tests complete';
+    };
+  </script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .test-case { margin-bottom: 20px; padding: 10px; border: 1px solid #ccc; }
+    .success { color: green; font-weight: bold; }
+    .fail { color: red; font-weight: bold; }
+    pre { background: #f5f5f5; padding: 10px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h1>CORS Test Page</h1>
+  <p>Testing CORS with the backend API</p>
+  <p id="status">Initializing...</p>
+  
+  <div class="test-case">
+    <h2>Test 1: OPTIONS Request (Preflight)</h2>
+    <p>Status: <span id="options-status">Pending</span></p>
+    <p id="options-result"></p>
+  </div>
+  
+  <div class="test-case">
+    <h2>Test 2: GET Request</h2>
+    <p>Status: <span id="get-status">Pending</span></p>
+    <p id="get-result"></p>
+    <pre id="get-data"></pre>
+  </div>
+  
+  <div class="test-case">
+    <h2>Test 3: POST Request</h2>
+    <p>Status: <span id="post-status">Pending</span></p>
+    <p id="post-result"></p>
+    <pre id="post-data"></pre>
+  </div>
+</body>
+</html> 

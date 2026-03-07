@@ -1,0 +1,149 @@
+/* Load Roboto font */
+@import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+
+/* Apply Roboto font to all elements */
+* {
+  font-family: 'Roboto' !important;
+}
+
+/* Override for specific elements */
+body, 
+h1, h2, h3, h4, h5, h6, 
+p, span, div, 
+button, input, textarea, select,
+a, li, ul, ol {
+  font-family: 'Roboto' !important;
+}
+
+/* Tag selectors for maximum specificity */
+html,
+body,
+div,
+span,
+applet,
+object,
+iframe,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+p,
+blockquote,
+pre,
+a,
+abbr,
+acronym,
+address,
+big,
+cite,
+code,
+del,
+dfn,
+em,
+img,
+ins,
+kbd,
+q,
+s,
+samp,
+small,
+strike,
+strong,
+sub,
+sup,
+tt,
+var,
+b,
+u,
+i,
+center,
+dl,
+dt,
+dd,
+ol,
+ul,
+li,
+fieldset,
+form,
+label,
+legend,
+table,
+caption,
+tbody,
+tfoot,
+thead,
+tr,
+th,
+td,
+article,
+aside,
+canvas,
+details,
+embed,
+figure,
+figcaption,
+footer,
+header,
+hgroup,
+menu,
+nav,
+output,
+ruby,
+section,
+summary,
+time,
+mark,
+audio,
+video,
+button,
+input,
+textarea,
+select {
+  font-family: 'Roboto' !important;
+}
+
+/* Button text */
+button, 
+.btn, 
+[type="button"], 
+[type="reset"], 
+[type="submit"] {
+  font-family: 'Roboto' !important;
+}
+
+/* Input fields */
+input, 
+textarea, 
+select, 
+option {
+  font-family: 'Roboto' !important;
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Roboto' !important;
+}
+
+/* Text elements */
+p, a, span, div, li {
+  font-family: 'Roboto' !important;
+}
+
+/* Font utility classes */
+.font-sans,
+.font-serif,
+.font-mono {
+  font-family: 'Roboto' !important;
+}
+
+/* Ensure Tailwind font classes are overridden */
+.font-sans {
+  font-family: 'Roboto' !important;
+}
+
+/* Utility class for forcing Roboto font */
+.font-roboto {
+  font-family: 'Roboto' !important;
+} 

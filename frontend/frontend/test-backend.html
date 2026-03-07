@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Backend API Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .button-group {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 10px 15px;
+      margin-right: 10px;
+      margin-bottom: 10px;
+      background-color: #0070f3;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0051b3;
+    }
+    .url-input {
+      width: 100%;
+      padding: 10px;
+      margin-bottom: 15px;
+      box-sizing: border-box;
+    }
+    .result {
+      white-space: pre-wrap;
+      padding: 15px;
+      background-color: #f4f4f4;
+      border-radius: 4px;
+      overflow-x: auto;
+      min-height: 200px;
+      border: 1px solid #ddd;
+    }
+    .status {
+      padding: 5px 10px;
+      border-radius: 4px;
+      display: inline-block;
+      margin-bottom: 10px;
+    }
+    .success {
+      background-color: #d4edda;
+      color: #155724;
+    }
+    .error {
+      background-color: #f8d7da;
+      color: #721c24;
+    }
+  </style>
+</head>
+<body>
+  <h1>Backend API Test Tool</h1>
+  
+  <div>
+    <label for="baseUrl">Base URL:</label>
+    <input type="text" id="baseUrl" class="url-input" value="">
+  </div>
+  
+  <div class="button-group">
+    <h2>Basic Endpoints</h2>
+    <button onclick="testEndpoint('/')">Test Root</button>
+    <button onclick="testEndpoint('/api/health')">Test Health</button>
+    <button onclick="testEndpoint('/health')">Test Health (without /api)</button>
+    <button onclick="testEndpoint('/api/chatbots')">Test Chatbots</button>
+  </div>
+  
+  <div class="button-group">
+    <h2>Custom Endpoint Test</h2>
+    <input type="text" id="customEndpoint" class="url-input" value="/api/health" placeholder="Enter endpoint path (e.g. /api/health)">
+    <select id="requestMethod">
+      <option value="GET">GET</option>
+      <option value="POST">POST</option>
+    </select>
+    <button onclick="testCustomEndpoint()">Test Custom Endpoint</button>
+  </div>
+  
+  <div>
+    <h2>Result</h2>
+    <div id="status" class="status"></div>
+    <div id="result" class="result">Results will appear here...</div>
+  </div>
+  
+  <script>
+    function updateStatus(success, message) {
+      const statusElement = document.getElementById('status');
+      statusElement.textContent = message;
+      statusElement.className = success ? 'status success' : 'status error';
+    }
+    
+    function showResult(text) {
+      document.getElementById('result').textContent = text;
+    }
+    
+    async function testEndpoint(path) {
+      const baseUrl = document.getElementById('baseUrl').value.trim();
+      const url = baseUrl + path;
+      
+      showResult(`Testing endpoint: ${url}\n\nLoading...`);
+      updateStatus(true, 'Testing...');
+      
+      try {
+        const startTime = Date.now();
+        const response = await fetch(url);
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        
+        try {
+          const data = await response.json();
+          updateStatus(response.ok, `Status: ${response.status} (${responseTime}ms)`);
+          showResult(`URL: ${url}\nStatus: ${response.status} ${response.statusText}\nResponse Time: ${responseTime}ms\n\nResponse Data:\n${JSON.stringify(data, null, 2)}`);
+        } catch (jsonError) {
+          const text = await response.text();
+          updateStatus(false, `Status: ${response.status} - Not JSON (${responseTime}ms)`);
+          showResult(`URL: ${url}\nStatus: ${response.status} ${response.statusText}\nResponse Time: ${responseTime}ms\n\nResponse is not JSON:\n${text}`);
+        }
+      } catch (error) {
+        updateStatus(false, `Error: ${error.message}`);
+        showResult(`URL: ${url}\n\nError: ${error.message}\n\nPossible causes:\n- Backend service is not running\n- Network connectivity issues\n- CORS policy blocking the request`);
+      }
+    }
+    
+    async function testCustomEndpoint() {
+      const path = document.getElementById('customEndpoint').value;
+      const method = document.getElementById('requestMethod').value;
+      const baseUrl = document.getElementById('baseUrl').value.trim();
+      const url = baseUrl + path;
+      
+      showResult(`Testing custom endpoint: ${url}\nMethod: ${method}\n\nLoading...`);
+      updateStatus(true, 'Testing...');
+      
+      try {
+        const startTime = Date.now();
+        const options = {
+          method: method,
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        };
+        
+        if (method === 'POST') {
+          options.body = JSON.stringify({
+            // Sample data for POST requests
+            name: "Test Bot",
+            description: "Created from test tool",
+            model: "gpt-3.5-turbo"
+          });
+        }
+        
+        const response = await fetch(url, options);
+        const endTime = Date.now();
+        const responseTime = endTime - startTime;
+        
+        try {
+          const data = await response.json();
+          updateStatus(response.ok, `Status: ${response.status} (${responseTime}ms)`);
+          showResult(`URL: ${url}\nMethod: ${method}\nStatus: ${response.status} ${response.statusText}\nResponse Time: ${responseTime}ms\n\nResponse Data:\n${JSON.stringify(data, null, 2)}`);
+        } catch (jsonError) {
+          const text = await response.text();
+          updateStatus(false, `Status: ${response.status} - Not JSON (${responseTime}ms)`);
+          showResult(`URL: ${url}\nMethod: ${method}\nStatus: ${response.status} ${response.statusText}\nResponse Time: ${responseTime}ms\n\nResponse is not JSON:\n${text}`);
+        }
+      } catch (error) {
+        updateStatus(false, `Error: ${error.message}`);
+        showResult(`URL: ${url}\nMethod: ${method}\n\nError: ${error.message}\n\nPossible causes:\n- Backend service is not running\n- Network connectivity issues\n- CORS policy blocking the request`);
+      }
+    }
+  </script>
+</body>
+</html> 
