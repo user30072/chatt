@@ -1,10 +1,14 @@
 FROM node:18-alpine AS base
 
-# Set default environment variables for production
-ENV NEXT_PUBLIC_API_URL=/api
-ENV NEXT_PUBLIC_FRONTEND_URL=""
-ENV PRIMARY_BACKEND_URL=""
-ENV BACKUP_BACKEND_URL=""
+# Build args that can be passed from Railway
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_FRONTEND_URL
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+
+# Set as environment variables for the build
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_FRONTEND_URL=${NEXT_PUBLIC_FRONTEND_URL}
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
 
 # Install dependencies only when needed
 FROM base AS deps
