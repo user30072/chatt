@@ -26,7 +26,7 @@ export default function DocumentsPage() {
   const fetchDocuments = async () => {
     setIsLoading(true);
     try {
-      const response = await apiService.getDocuments();
+      const response = await apiService.getAllDocuments();
       setDocuments(response.data.documents || []);
     } catch (error) {
       console.error('Error fetching documents:', error);

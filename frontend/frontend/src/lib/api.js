@@ -340,6 +340,12 @@ export const apiService = {
     return apiClient.get(`/chatbots/${id}/website-integration`);
   },
 
+  // Get all documents for the current user
+  getAllDocuments() {
+    return apiClient.get('/documents');
+  },
+
+  // Get documents for a specific chatbot
   getDocuments(chatbotId) {
     return apiClient.get(`/chatbots/${chatbotId}/documents`);
   },
