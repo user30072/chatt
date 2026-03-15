@@ -23,6 +23,16 @@ RUN npm install
 FROM base AS builder
 WORKDIR /app
 
+# Re-declare build args for this stage
+ARG NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_FRONTEND_URL
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+
+# Set as environment variables
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_FRONTEND_URL=${NEXT_PUBLIC_FRONTEND_URL}
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
+
 # Copy node modules and other files
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
