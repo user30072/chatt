@@ -7,7 +7,9 @@ import path from 'path';
 
 export const config = {
   api: {
-    bodyParser: true,
+    bodyParser: {
+      sizeLimit: '10mb', // Allow large document uploads (base64 increases size by ~33%)
+    },
     externalResolver: true,
   },
 };
