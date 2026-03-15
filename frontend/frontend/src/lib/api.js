@@ -351,11 +351,8 @@ export const apiService = {
   },
 
   uploadDocument(formData) {
-    return apiClient.post('/documents', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
-    });
+    // Don't set Content-Type - let axios set it with the correct boundary
+    return apiClient.post('/documents', formData);
   },
 
   deleteDocument(id) {
