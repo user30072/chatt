@@ -6,7 +6,7 @@
 const DEFAULT_COOKIE_OPTIONS = {
   path: '/',          // Available on all paths
   sameSite: 'Strict', // Strictly same-site
-  secure: false, // TODO: enable when HTTPS is configured
+  secure: typeof window !== 'undefined' && window.location.protocol === 'https:',
   maxAge: 24 * 60 * 60 // 24 hours in seconds
 };
 
