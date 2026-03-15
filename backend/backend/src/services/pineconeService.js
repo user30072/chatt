@@ -78,28 +78,12 @@ class PineconeService {
         throw new Error('Pinecone is not available or not a constructor');
       }
       
-      // Handle different Pinecone constructor patterns
-      if (typeof Pinecone === 'function') {
-        // SDK v1.1.2 - based on errors, it seems to only accept apiKey and controllerHostUrl
-        // The 'environment' parameter causes "additional properties" error
-        // So we use controllerHostUrl to specify the correct endpoint
-        const config = {
-          apiKey: process.env.PINECONE_API_KEY,
-          controllerHostUrl: process.env.PINECONE_CONTROLLER_HOST || 'https://api.pinecone.io'
-        };
-        
-        this.pinecone = new Pinecone(config);
-        console.log('Pinecone client initialized with API key and controller host:', config.controllerHostUrl);
-      } else if (Pinecone && typeof Pinecone.init === 'function') {
-        // Alternative initialization pattern (old SDK)
-        this.pinecone = Pinecone.init({
-          apiKey: process.env.PINECONE_API_KEY,
-          environment: process.env.PINECONE_ENVIRONMENT || 'us-east-1-aws'
-        });
-        console.log('Pinecone client initialized using init() method');
-      } else {
-        throw new Error('Unsupported Pinecone client structure');
-      }
+      // Initialize Pinecone client (v2+)
+      // Modern Pinecone SDK only needs API key - environment is auto-detected
+      this.pinecone = new Pinecone({
+        apiKey: process.env.PINECONE_API_KEY
+      });
+      console.log('Pinecone client initialized successfully');
       this.indexName = process.env.PINECONE_INDEX_NAME || 'document-chunks';
       this.index = null;
     } catch (error) {
