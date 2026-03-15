@@ -109,12 +109,16 @@ router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, uploadSingleFile
       }
     }
     
+    // For memory storage, file.buffer contains the file content
+    // file_url stores the original filename since we don't have a persistent path
+    const file_url = `memory://${file.originalname}`;
+    
     // Create document record
     const document = await prisma.document.create({
       data: {
         name,
         file_type,
-        file_url: file.path, // Store file path
+        file_url,
         file_size,
         status: 'processing',
         user_id: req.user.userId,
@@ -125,10 +129,9 @@ router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, uploadSingleFile
     // Return document details to frontend
     res.status(201).json({ document });
     
-    // Process the document asynchronously
+    // Process the document asynchronously using the buffer
     try {
-      // Read file from disk
-      const fileContent = file.buffer || require('fs').readFileSync(file.path);
+      const fileContent = file.buffer;
       processDocument(document, fileContent)
         .then(success => {
           console.log(`Document ${document.id} processed: ${success ? 'success' : 'failed'}`);

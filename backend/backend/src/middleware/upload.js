@@ -6,24 +6,9 @@ const { v4: uuidv4 } = require('uuid');
 const { ValidationError } = require('./errorHandler');
 const config = require('../config/environment');
 
-// Ensure uploads directory exists
-const uploadDir = config.UPLOAD_DIR;
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
-// Configure storage
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    // Generate unique filename
-    const uniqueSuffix = `${Date.now()}-${uuidv4()}`;
-    const extension = path.extname(file.originalname).toLowerCase();
-    cb(null, `${file.fieldname}-${uniqueSuffix}${extension}`);
-  }
-});
+// Use memory storage for Railway (ephemeral filesystem)
+// Files are stored in memory as Buffer objects
+const storage = multer.memoryStorage();
 
 // File filter
 const fileFilter = (req, file, cb) => {
