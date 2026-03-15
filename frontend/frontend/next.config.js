@@ -18,7 +18,7 @@ const nextConfig = {
     NEXT_PUBLIC_BACKEND_URL: (process.env.PRIMARY_BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || '').replace(/\/api$/, ''),
   },
   // Enable standalone output mode for Docker deployment
-  output: 'standalone',
+  // output: 'standalone', // disabled for direct dev
   // Configure API routes - with improved logging
   // NOTE: We do NOT rewrite /api/proxy/* requests as these are handled by Next.js API routes
   async rewrites() {

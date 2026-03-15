@@ -4,7 +4,6 @@ import './globals.css';
 import "../styles/fonts.css";
 import GoogleOAuthWrapper from '@/components/GoogleOAuthWrapper';
 import { AuthProvider } from '@/lib/auth';
-import { cleanupCache } from '@/lib/browserUtils';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -14,15 +13,6 @@ export const metadata = {
 };
 
 export default function RootLayout({ children }) {
-  // Clean up potentially corrupted localStorage cache on app load
-  if (typeof window !== 'undefined') {
-    try {
-      cleanupCache();
-    } catch (error) {
-      console.error('Error during cache cleanup:', error);
-    }
-  }
-  
   return (
     <html lang="en">
       <head>
