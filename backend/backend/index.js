@@ -193,10 +193,13 @@ app.use((req, res, next) => {
 
 // Body parser - skip for multipart/form-data (file uploads)
 app.use((req, res, next) => {
-  if (req.headers['content-type']?.includes('multipart/form-data')) {
-    // Skip JSON parsing for file uploads
+  const contentType = (req.headers['content-type'] || '').toLowerCase();
+  if (contentType.includes('multipart/form-data')) {
+    // Skip all body parsers for file uploads - multer will handle it
+    console.log('[BODY-PARSER] Skipping body parsers for multipart request');
     return next();
   }
+  // Apply JSON parser for non-multipart requests
   express.json({ limit: '10mb' })(req, res, next);
 });
 app.use(morgan('dev'));

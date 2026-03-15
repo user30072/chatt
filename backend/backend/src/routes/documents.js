@@ -76,11 +76,17 @@ const { enforceFileSizeLimit } = require('../middleware/limits');
 
 router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, uploadSingleFile('file'), enforceFileSizeLimit, async (req, res, next) => {
   try {
+    console.log('[UPLOAD] Headers:', req.headers['content-type']);
+    console.log('[UPLOAD] Body:', Object.keys(req.body));
+    console.log('[UPLOAD] File:', req.file);
+    console.log('[UPLOAD] Files:', req.files);
+    
     // Create document record from form data
     const { name } = req.body;
     const file = req.file;
     
     if (!file) {
+      console.error('[UPLOAD] No file received. Body keys:', Object.keys(req.body), 'File:', req.file);
       return res.status(400).json({ message: 'No file uploaded' });
     }
     
