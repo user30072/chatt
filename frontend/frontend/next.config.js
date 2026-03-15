@@ -6,7 +6,7 @@ const nextConfig = {
   // Explicitly use environment variables from process.env in build time
   env: {
     // Make sure environment variables are available to the client with explicit default values
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || '/api',
+    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || 'https://backy-production-a439.up.railway.app/api',
     NEXT_PUBLIC_API_TIMEOUT: process.env.NEXT_PUBLIC_API_TIMEOUT || '60000',
     PRIMARY_BACKEND_URL: process.env.PRIMARY_BACKEND_URL || '',
     BACKUP_BACKEND_URL: process.env.BACKUP_BACKEND_URL || '',
