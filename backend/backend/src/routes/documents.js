@@ -74,37 +74,20 @@ router.get('/:id', isAuthenticated, async (req, res, next) => {
 const { hasActiveSubscriptionOrTrial } = require('../middleware/auth');
 const { enforceFileSizeLimit } = require('../middleware/limits');
 
-router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, (req, res, next) => {
-  console.log('[UPLOAD-PRE] Content-Type:', req.headers['content-type']);
-  console.log('[UPLOAD-PRE] Content-Length:', req.headers['content-length']);
-  uploadSingleFile('file')(req, res, (err) => {
-    if (err) {
-      console.error('[UPLOAD] Multer error:', err.message, err.code);
-      return next(err);
-    }
-    next();
-  });
-}, enforceFileSizeLimit, async (req, res, next) => {
+router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, async (req, res, next) => {
   try {
-    console.log('[UPLOAD] Headers:', req.headers['content-type']);
-    console.log('[UPLOAD] Body:', Object.keys(req.body));
-    console.log('[UPLOAD] File:', req.file);
-    console.log('[UPLOAD] Files:', req.files);
+    console.log('[UPLOAD] Content-Type:', req.headers['content-type']);
+    console.log('[UPLOAD] Body keys:', Object.keys(req.body));
     
-    // Create document record from form data
-    const { name } = req.body;
-    const file = req.file;
+    const { name, file_data, file_name, file_type, file_size } = req.body;
     
-    if (!file) {
-      console.error('[UPLOAD] No file received. Body keys:', Object.keys(req.body), 'File:', req.file);
-      return res.status(400).json({ message: 'No file uploaded' });
+    if (!file_data || !file_name) {
+      return res.status(400).json({ message: 'Missing file data or filename' });
     }
     
-    // Get file type/MIME type
-    const file_type = req.body.file_type || file.mimetype || file.originalname.split('.').pop();
-    
-    // Calculate file size
-    const file_size = file.size;
+    // Decode base64 to buffer
+    const fileBuffer = Buffer.from(file_data, 'base64');
+    const actualSize = file_size || fileBuffer.length;
     
     // Optional chatbot ID
     const chatbot_id = req.body.chatbot_id || null;
@@ -125,9 +108,7 @@ router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, (req, res, next)
       }
     }
     
-    // For memory storage, file.buffer contains the file content
-    // file_url stores the original filename since we don't have a persistent path
-    const file_url = `memory://${file.originalname}`;
+    const file_url = `base64://${file_name}`;
     
     // Create document record
     const document = await prisma.document.create({
@@ -135,7 +116,7 @@ router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, (req, res, next)
         name,
         file_type,
         file_url,
-        file_size,
+        file_size: actualSize,
         status: 'processing',
         user_id: req.user.userId,
         chatbot_id
@@ -145,10 +126,9 @@ router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, (req, res, next)
     // Return document details to frontend
     res.status(201).json({ document });
     
-    // Process the document asynchronously using the buffer
+    // Process the document asynchronously
     try {
-      const fileContent = file.buffer;
-      processDocument(document, fileContent)
+      processDocument(document, fileBuffer)
         .then(success => {
           console.log(`Document ${document.id} processed: ${success ? 'success' : 'failed'}`);
         })

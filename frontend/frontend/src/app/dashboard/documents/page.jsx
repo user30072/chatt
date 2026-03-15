@@ -108,13 +108,25 @@ export default function DocumentsPage() {
     
     setIsUploading(true);
     try {
-      // Create FormData for file upload
-      const formData = new FormData();
-      formData.append('name', uploadData.name);
-      formData.append('file', uploadData.file);
-      formData.append('file_type', uploadData.file.type || uploadData.file.name.split('.').pop());
+      // Convert file to base64 to avoid multipart/Railway proxy issues
+      const reader = new FileReader();
+      const base64Promise = new Promise((resolve, reject) => {
+        reader.onload = () => resolve(reader.result.split(',')[1]); // Get base64 part only
+        reader.onerror = reject;
+        reader.readAsDataURL(uploadData.file);
+      });
       
-      const response = await apiService.uploadDocument(formData);
+      const base64Data = await base64Promise;
+      
+      const payload = {
+        name: uploadData.name,
+        file_data: base64Data,
+        file_name: uploadData.file.name,
+        file_type: uploadData.file.type || uploadData.file.name.split('.').pop(),
+        file_size: uploadData.file.size
+      };
+      
+      const response = await apiService.uploadDocument(payload);
       
       toast({
         title: 'Success',
