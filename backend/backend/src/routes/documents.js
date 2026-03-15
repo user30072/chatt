@@ -74,7 +74,17 @@ router.get('/:id', isAuthenticated, async (req, res, next) => {
 const { hasActiveSubscriptionOrTrial } = require('../middleware/auth');
 const { enforceFileSizeLimit } = require('../middleware/limits');
 
-router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, uploadSingleFile('file'), enforceFileSizeLimit, async (req, res, next) => {
+router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, (req, res, next) => {
+  console.log('[UPLOAD-PRE] Content-Type:', req.headers['content-type']);
+  console.log('[UPLOAD-PRE] Content-Length:', req.headers['content-length']);
+  uploadSingleFile('file')(req, res, (err) => {
+    if (err) {
+      console.error('[UPLOAD] Multer error:', err.message, err.code);
+      return next(err);
+    }
+    next();
+  });
+}, enforceFileSizeLimit, async (req, res, next) => {
   try {
     console.log('[UPLOAD] Headers:', req.headers['content-type']);
     console.log('[UPLOAD] Body:', Object.keys(req.body));
