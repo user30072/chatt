@@ -191,7 +191,14 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use(express.json({ limit: '10mb' }));
+// Body parser - skip for multipart/form-data (file uploads)
+app.use((req, res, next) => {
+  if (req.headers['content-type']?.includes('multipart/form-data')) {
+    // Skip JSON parsing for file uploads
+    return next();
+  }
+  express.json({ limit: '10mb' })(req, res, next);
+});
 app.use(morgan('dev'));
 
 // Debug middleware - log all requests
