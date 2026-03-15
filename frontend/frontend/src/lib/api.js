@@ -48,6 +48,12 @@ apiClient.interceptors.request.use(
       // Always attach token with Bearer prefix regardless of format
       config.headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
     }
+    
+    // If sending FormData, remove Content-Type to let axios set it with boundary
+    if (config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+    
     return config;
   },
   (error) => {
@@ -351,7 +357,7 @@ export const apiService = {
   },
 
   uploadDocument(formData) {
-    // Don't set Content-Type - let axios set it with the correct boundary
+    // The request interceptor will auto-detect FormData and set the correct Content-Type
     return apiClient.post('/documents', formData);
   },
 
