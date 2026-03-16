@@ -108,7 +108,7 @@ export default function DocumentsPage() {
     
     setIsUploading(true);
     try {
-      // Convert file to base64 to avoid multipart/Railway proxy issues
+      // Convert file to base64 to avoid multipart/Railway proxy issues (v2)
       const reader = new FileReader();
       const base64Promise = new Promise((resolve, reject) => {
         reader.onload = () => resolve(reader.result.split(',')[1]); // Get base64 part only
