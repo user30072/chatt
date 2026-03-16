@@ -3,6 +3,10 @@
  */
 const nextConfig = {
   reactStrictMode: true,
+  // Force cache bust - increment this to force rebuild
+  generateBuildId: async () => {
+    return 'build-' + Date.now();
+  },
   // Explicitly use environment variables from process.env in build time
   env: {
     // Make sure environment variables are available to the client with explicit default values

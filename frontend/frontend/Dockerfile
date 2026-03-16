@@ -60,6 +60,9 @@ RUN if [ -f "src/widget/dist/widget.js" ]; then \
 ENV NEXT_TELEMETRY_DISABLED 1
 ENV NODE_ENV production
 
+# Clear any existing build cache
+RUN rm -rf .next
+
 # Print environment variables during build for debugging
 RUN echo "Building with environment variables:"
 RUN echo "NEXT_PUBLIC_API_URL: $NEXT_PUBLIC_API_URL"
