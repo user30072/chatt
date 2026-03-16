@@ -361,12 +361,32 @@ export const apiService = {
     const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backy-production-a439.up.railway.app/api';
     const token = getCookie('token');
     
+    console.log('[API] uploadDocument called with payload keys:', Object.keys(payload));
+    console.log('[API] Payload size:', JSON.stringify(payload).length, 'bytes');
+    console.log('[API] Backend URL:', `${backendUrl}/documents`);
+    console.log('[API] Token present:', !!token);
+    
+    if (!payload || !payload.file_data || !payload.file_name) {
+      console.error('[API] Invalid payload:', payload);
+      return Promise.reject(new Error('Invalid upload payload'));
+    }
+    
+    const authHeader = token && token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+    
+    console.log('[API] Making POST request...');
+    
     return axios.post(`${backendUrl}/documents`, payload, {
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+        'Authorization': authHeader
       },
       timeout: 60000 // 60 second timeout for large uploads
+    }).then(response => {
+      console.log('[API] Upload response:', response.status);
+      return response;
+    }).catch(error => {
+      console.error('[API] Upload error:', error.response?.data || error.message);
+      throw error;
     });
   },
 
