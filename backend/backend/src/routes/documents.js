@@ -77,6 +77,21 @@ const { enforceFileSizeLimit } = require('../middleware/limits');
 router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, async (req, res, next) => {
   try {
     console.log('[UPLOAD] Content-Type:', req.headers['content-type']);
+    console.log('[UPLOAD] Body exists:', !!req.body);
+    console.log('[UPLOAD] Body type:', typeof req.body);
+    
+    if (!req.body || typeof req.body !== 'object') {
+      console.error('[UPLOAD ERROR] req.body is not an object:', req.body);
+      return res.status(400).json({ 
+        message: 'Request body is missing or invalid',
+        debug: {
+          bodyExists: !!req.body,
+          bodyType: typeof req.body,
+          contentType: req.headers['content-type']
+        }
+      });
+    }
+    
     console.log('[UPLOAD] Body keys:', Object.keys(req.body));
     
     const { name, file_data, file_name, file_type, file_size } = req.body;

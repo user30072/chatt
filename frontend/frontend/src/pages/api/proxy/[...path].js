@@ -103,6 +103,12 @@ export default async function handler(req, res) {
   console.log(`[${requestId}] Received ${req.method} request to proxy catch-all endpoint`);
   console.log(`[${requestId}] Request URL:`, req.url);
   console.log(`[${requestId}] PRIMARY_BACKEND_URL:`, process.env.PRIMARY_BACKEND_URL || 'NOT SET');
+  console.log(`[${requestId}] req.body exists:`, !!req.body);
+  console.log(`[${requestId}] req.body type:`, typeof req.body);
+  if (req.body) {
+    console.log(`[${requestId}] req.body keys:`, Object.keys(req.body));
+    console.log(`[${requestId}] req.body size estimate:`, JSON.stringify(req.body).length, 'bytes');
+  }
   
   // Get the path parts from the URL
   const { pathname } = parse(req.url, true);
