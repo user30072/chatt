@@ -99,6 +99,9 @@ export default function DocumentsPage() {
   const handleUploadSubmit = async (e) => {
     e.preventDefault();
     
+    console.log('[DEBUG] handleUploadSubmit called');
+    console.log('[DEBUG] uploadData:', { name: uploadData.name, hasFile: !!uploadData.file });
+    
     if (!uploadData.name || !uploadData.file) {
       toast({
         title: 'Missing information',
@@ -109,8 +112,11 @@ export default function DocumentsPage() {
     }
     
     setIsUploading(true);
+    console.log('[DEBUG] Starting upload process...');
+    
     try {
-      // Convert file to base64 to avoid multipart/Railway proxy issues (v2)
+      console.log('[DEBUG] About to read file as base64...');
+      // Convert file to base64 to avoid multipart/Railway proxy issues (v3)
       const reader = new FileReader();
       const base64Promise = new Promise((resolve, reject) => {
         reader.onload = () => resolve(reader.result.split(',')[1]); // Get base64 part only
