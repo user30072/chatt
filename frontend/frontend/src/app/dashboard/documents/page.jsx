@@ -7,6 +7,8 @@ import { FileText, Upload, File, Trash, X, Loader2 } from 'lucide-react';
 import apiService from '@/lib/api';
 import { useToast } from '@/lib/toast';
 
+// Cache bust version 2 - force new chunk generation
+
 export default function DocumentsPage() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -135,7 +137,22 @@ export default function DocumentsPage() {
         payload_keys: Object.keys(payload)
       });
       
-      const response = await apiService.uploadDocument(payload);
+      // Direct upload to bypass cache issues
+      const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backy-production-a439.up.railway.app/api';
+      const { getCookie } = await import('@/lib/cookies');
+      const token = getCookie('token');
+      const axios = (await import('axios')).default;
+      
+      console.log('[DIRECT UPLOAD] Backend URL:', backendUrl);
+      console.log('[DIRECT UPLOAD] Payload size:', JSON.stringify(payload).length);
+      
+      const response = await axios.post(`${backendUrl}/documents`, payload, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+        },
+        timeout: 60000
+      });
       
       toast({
         title: 'Success',
