@@ -93,11 +93,34 @@ router.post('/', isAuthenticated, hasActiveSubscriptionOrTrial, async (req, res,
     }
     
     console.log('[UPLOAD] Body keys:', Object.keys(req.body));
+    console.log('[UPLOAD] Body values check:', {
+      hasName: !!req.body.name,
+      hasFileData: !!req.body.file_data,
+      hasFileName: !!req.body.file_name,
+      fileDataLength: req.body.file_data?.length || 0,
+      fileNameValue: req.body.file_name
+    });
     
     const { name, file_data, file_name, file_type, file_size } = req.body;
     
     if (!file_data || !file_name) {
-      return res.status(400).json({ message: 'Missing file data or filename' });
+      console.error('[UPLOAD ERROR] Missing required fields:', {
+        file_data_exists: !!file_data,
+        file_data_type: typeof file_data,
+        file_data_length: file_data?.length || 0,
+        file_name_exists: !!file_name,
+        file_name_value: file_name,
+        all_body_keys: Object.keys(req.body),
+        body_sample: JSON.stringify(req.body).substring(0, 200)
+      });
+      return res.status(400).json({ 
+        message: 'Missing file data or filename',
+        debug: {
+          received_keys: Object.keys(req.body),
+          file_data_present: !!file_data,
+          file_name_present: !!file_name
+        }
+      });
     }
     
     // Decode base64 to buffer

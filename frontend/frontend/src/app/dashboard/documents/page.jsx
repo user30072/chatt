@@ -126,6 +126,15 @@ export default function DocumentsPage() {
         file_size: uploadData.file.size
       };
       
+      console.log('[FRONTEND] Upload payload:', {
+        name: payload.name,
+        file_name: payload.file_name,
+        file_type: payload.file_type,
+        file_size: payload.file_size,
+        file_data_length: payload.file_data?.length || 0,
+        payload_keys: Object.keys(payload)
+      });
+      
       const response = await apiService.uploadDocument(payload);
       
       toast({
