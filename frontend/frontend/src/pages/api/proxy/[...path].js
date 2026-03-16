@@ -7,10 +7,7 @@ import path from 'path';
 
 export const config = {
   api: {
-    bodyParser: {
-      sizeLimit: '10mb', // Allow large document uploads (base64 increases size by ~33%)
-    },
-    // externalResolver removed - it can interfere with body parsing
+    bodyParser: false, // Disable automatic parsing - we'll handle it manually
   },
 };
 
@@ -108,18 +105,39 @@ async function fetchFromBackend(url, req, requestId) {
   }
 }
 
+// Helper to read raw body
+async function getRawBody(req) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    req.on('data', (chunk) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+    req.on('error', reject);
+  });
+}
+
 export default async function handler(req, res) {
   // Generate a unique ID for request tracking
   const requestId = Math.random().toString(36).substring(2, 10);
   console.log(`[${requestId}] Received ${req.method} request to proxy catch-all endpoint`);
   console.log(`[${requestId}] Request URL:`, req.url);
   console.log(`[${requestId}] PRIMARY_BACKEND_URL:`, process.env.PRIMARY_BACKEND_URL || 'NOT SET');
-  console.log(`[${requestId}] req.body exists:`, !!req.body);
-  console.log(`[${requestId}] req.body type:`, typeof req.body);
-  if (req.body) {
-    console.log(`[${requestId}] req.body keys:`, Object.keys(req.body));
-    console.log(`[${requestId}] req.body size estimate:`, JSON.stringify(req.body).length, 'bytes');
+  
+  // Manually parse body if this is POST/PUT/PATCH
+  let parsedBody = null;
+  if (req.method !== 'GET' && req.method !== 'HEAD') {
+    try {
+      const rawBody = await getRawBody(req);
+      console.log(`[${requestId}] Raw body length:`, rawBody.length, 'bytes');
+      if (rawBody) {
+        parsedBody = JSON.parse(rawBody);
+        console.log(`[${requestId}] Parsed body keys:`, Object.keys(parsedBody));
+      }
+    } catch (e) {
+      console.error(`[${requestId}] Error parsing body:`, e.message);
+    }
   }
+  
+  req.body = parsedBody;
   
   // Get the path parts from the URL
   const { pathname } = parse(req.url, true);
