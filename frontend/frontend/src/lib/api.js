@@ -356,9 +356,18 @@ export const apiService = {
     return apiClient.get(`/chatbots/${chatbotId}/documents`);
   },
 
-  uploadDocument(formData) {
-    // The request interceptor will auto-detect FormData and set the correct Content-Type
-    return apiClient.post('/documents', formData);
+  uploadDocument(payload) {
+    // Use direct backend URL for document uploads to bypass proxy body parsing issues
+    const backendUrl = process.env.NEXT_PUBLIC_API_URL || 'https://backy-production-a439.up.railway.app/api';
+    const token = getCookie('token');
+    
+    return axios.post(`${backendUrl}/documents`, payload, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': token.startsWith('Bearer ') ? token : `Bearer ${token}`
+      },
+      timeout: 60000 // 60 second timeout for large uploads
+    });
   },
 
   deleteDocument(id) {
