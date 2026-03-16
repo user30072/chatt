@@ -10,7 +10,7 @@ export const config = {
     bodyParser: {
       sizeLimit: '10mb', // Allow large document uploads (base64 increases size by ~33%)
     },
-    externalResolver: true,
+    // externalResolver removed - it can interfere with body parsing
   },
 };
 
@@ -69,10 +69,21 @@ async function fetchFromBackend(url, req, requestId) {
     });
     
     // Forward the original request method and body
+    let bodyToSend;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
+      if (!req.body) {
+        console.error(`[${requestId}] ERROR: req.body is undefined/null for ${req.method} request!`);
+        bodyToSend = undefined;
+      } else {
+        bodyToSend = JSON.stringify(req.body);
+        console.log(`[${requestId}] Body size being sent: ${bodyToSend.length} bytes`);
+      }
+    }
+    
     const options = {
       method: req.method,
       headers,
-      body: req.method !== 'GET' && req.method !== 'HEAD' ? JSON.stringify(req.body) : undefined,
+      body: bodyToSend,
     };
     
     console.log(`[${requestId}] Sending ${req.method} request to ${url}`);
